@@ -1,2 +1,4 @@
 # pico-cppm
-CPPM library for the Raspberry Pi Pico using PIO + DMA
+cPPM library for the Raspberry Pi Pico using PIO + DMA
+
+Supports decoding cPPM signals, does not yet support generating cPPM signals
