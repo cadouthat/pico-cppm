@@ -1,0 +1,63 @@
+.program cppm_decoder
+
+.define public clock_per_y 2
+.define public clock_per_x 3
+
+pull block
+jmp reset_counters
+
+edge_start:
+  in x 32
+  push noblock
+
+reset_counters:
+  set x, 0
+  jmp x-- nojmp_reset_counters
+nojmp_reset_counters:
+  ; minimum loop count for high pulse is configured in OSR
+  mov y, osr
+
+; cycles spent HIGH = Y * 2
+; cycles spent LOW = X * 3
+wait_for_high:
+  jmp pin count_high
+  jmp x-- nojmp_wait_for_high
+  jmp overflow
+nojmp_wait_for_high:
+  jmp wait_for_high
+
+count_high:
+  jmp y-- wait_for_high
+
+; cycles spent HIGH = X * 3
+wait_for_low:
+  jmp x-- nojmp_wait_for_low
+  jmp overflow
+nojmp_wait_for_low:
+  nop
+  jmp pin wait_for_low
+
+; cycles spent LOW = X * 3
+wait_for_edge:
+  jmp x-- nojmp_wait_for_edge
+  jmp overflow
+nojmp_wait_for_edge:
+  jmp pin edge_start
+  jmp wait_for_edge
+
+overflow:
+  set x, 0
+  jmp edge_start
+
+% c-sdk {
+static inline void cppm_decoder_program_init(PIO pio, uint sm, uint offset, uint pin) {
+    pio_sm_config c = cppm_decoder_program_get_default_config(offset);
+
+    sm_config_set_jmp_pin(&c, pin);
+    pio_gpio_init(pio, pin);
+    pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, false);
+
+    pio_sm_init(pio, sm, offset, &c);
+    pio_sm_set_enabled(pio, sm, true);
+}
+%}
