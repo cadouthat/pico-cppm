@@ -6,10 +6,26 @@
 #include "hardware/dma.h"
 #include "hardware/pio.h"
 
+#include "cppm_decoder.pio.h"
+
+namespace {
+
+constexpr uint32_t DEFAULT_MAX_PERIOD_US = 2500;
+constexpr double DEFAULT_CALIBRATED_MIN_US = 900;
+constexpr double DEFAULT_CALIBRATED_MAX_US = 2200;
+
+} // namespace
+
 class CPPMDecoder {
  public:
-  CPPMDecoder(uint cppm_gpio, PIO pio = pio0)
-    : cppm_gpio(cppm_gpio), pio(pio) {}
+  CPPMDecoder(uint cppm_gpio, PIO pio = pio0,
+    uint32_t max_period_us = DEFAULT_MAX_PERIOD_US,
+    double calibrated_min_us = DEFAULT_CALIBRATED_MIN_US,
+    double calibrated_max_us = DEFAULT_CALIBRATED_MAX_US)
+    : cppm_gpio(cppm_gpio), pio(pio),
+    max_period_us(max_period_us),
+    calibrated_min_us(calibrated_min_us),
+    calibrated_max_us(calibrated_max_us) {}
   // TODO: cleanup in destructor
 
   // Start PIO/DMA, which will begin populating channel values via interrupts
@@ -26,13 +42,6 @@ class CPPMDecoder {
   static void sharedInit(uint dma_irq_index);
 
  private:
-  static constexpr uint CPPM_CHANNELS = 9;
-  static constexpr uint DMA_TRANSFER_SIZE = CPPM_CHANNELS + 1;
-
-  static constexpr double DEFAULT_MIN_PULSE_US = 100;
-  static constexpr double DEFAULT_SYNC_THRESHOLD_US = 2500;
-  static constexpr double DEFAULT_CALIBRATED_MIN_US = 900;
-  static constexpr double DEFAULT_CALIBRATED_MAX_US = 2200;
 
   uint cppm_gpio;
 
@@ -40,23 +49,17 @@ class CPPMDecoder {
   uint pio_offset = 0;
   uint pio_sm = 0;
 
-  uint32_t clocks_per_us = 0;
-
   int dma_channel = -1;
-  uint32_t dma_buffer[DMA_TRANSFER_SIZE] = {0};
+  volatile uint32_t dma_buffer[cppm_decoder_NUM_CHANNELS] = {0};
 
-  // Last known values for each channel
-  double last_channel_us[CPPM_CHANNELS] = {0};
-  uint ch_write_index = CPPM_CHANNELS;
-
-  // Minimum "high" IO duration (cumulative) to be considered a pulse
-  const double min_pulse_us = DEFAULT_MIN_PULSE_US;
-  // Maximum pulse-to-pulse period to be a channel value, instead of a sync
-  double sync_threshold_us = DEFAULT_SYNC_THRESHOLD_US;
-  // Channel value that maps to -1
-  double calibrated_min_us = DEFAULT_CALIBRATED_MIN_US;
-  // Channel value that maps to 1
-  double calibrated_max_us = DEFAULT_CALIBRATED_MAX_US;
+  uint32_t clocks_per_us = 0;
+  uint32_t max_period_count = 0;
+  // Maximum pulse-to-pulse period before starting a new frame
+  uint32_t max_period_us;
+  // Channel period that maps to -1
+  double calibrated_min_us;
+  // Channel period that maps to 1
+  double calibrated_max_us;
 
   static int dma_irq_index;
   // Map from DMA channel to CPPMDecoder instance which claims it (if any)

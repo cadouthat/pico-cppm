@@ -1,7 +1,10 @@
 #include "pico_cppm/cppm_decoder.h"
 
 #include <stdint.h>
+#include <stdio.h>
+#include <inttypes.h>
 
+#include "pico/stdlib.h"
 #include "hardware/clocks.h"
 #include "hardware/dma.h"
 #include "hardware/pio.h"
@@ -41,21 +44,31 @@ void CPPMDecoder::startListening() {
     &dma_config,
     dma_buffer,
     &pio->rxf[pio_sm],
-    DMA_TRANSFER_SIZE,
+    sizeof(dma_buffer) / sizeof(uint32_t),
     /*trigger=*/true);
 
-  // Unblock the PIO program by providing minimum pulse width via TX FIFO
+  // Unblock the PIO program by providing maximum period count via TX FIFO
   clocks_per_us = clock_get_hz(clk_sys) / MICROS_PER_SEC;
-  pio_sm_put_blocking(pio, pio_sm, min_pulse_us * clocks_per_us / cppm_decoder_clock_per_y);
+  max_period_count = max_period_us * clocks_per_us / cppm_decoder_CLOCKS_PER_COUNT;
+  pio_sm_put_blocking(pio, pio_sm, max_period_count);
 }
 
 double CPPMDecoder::getChannelValue(uint ch) {
-  if (ch >= CPPM_CHANNELS) {
+  if (ch >= cppm_decoder_NUM_CHANNELS) {
+    return 0;
+  }
+  // 0 indicates that a channel value is not available
+  if (!dma_buffer[ch]) {
     return 0;
   }
 
+  // PIO deducts from max period count and pushes the number remaining
+  uint32_t last_count = max_period_count - dma_buffer[ch];
+
+  double last_us = (last_count / (double)clocks_per_us) * cppm_decoder_CLOCKS_PER_COUNT;
+
   // Use calibration to convert duration to [-1, 1] value range
-  double p = (last_channel_us[ch] - calibrated_min_us) / (calibrated_max_us - calibrated_min_us);
+  double p = (last_us - calibrated_min_us) / (calibrated_max_us - calibrated_min_us);
   p = p * 2 - 1;
   
   if (p < -1) {
@@ -82,36 +95,11 @@ void CPPMDecoder::sharedInit(uint dma_irq_index) {
 }
 
 void CPPMDecoder::handleDMAFinished() {
-  // TODO: re-align if CPPM chunks become mis-aligned with DMA transfers (otherwise some channels lag)
-
-  // Process each transferred value (we always ask DMA to fill the entire buffer)
-  for (int i = 0; i < DMA_TRANSFER_SIZE; i++) {
-    // Invert the value since the PIO program can only decrement
-    uint32_t x_count = -dma_buffer[i];
-
-    if (!x_count) {
-      // PIO encountered overflow. Throw away data until the next sync pulse
-      ch_write_index = CPPM_CHANNELS;
-      continue;
-    }
-
-    double span_us = min_pulse_us + (x_count / (double)clocks_per_us) * cppm_decoder_clock_per_x;
-    if (span_us > sync_threshold_us) {
-      // Sync pulse
-      ch_write_index = 0;
-      continue;
-    }
-
-    if (ch_write_index >= CPPM_CHANNELS) {
-      // Too many channels, or waiting for a sync pulse
-      continue;
-    }
-
-    last_channel_us[ch_write_index++] = span_us;
-  }
-
   // Restart DMA transfer
   dma_channel_set_write_addr(dma_channel, dma_buffer, /*trigger=*/true);
+
+  // FIXME
+  //printf("DMA finished!\n");
 }
 
 uint CPPMDecoder::assignUnusedDMAChannel(CPPMDecoder* instance) {
