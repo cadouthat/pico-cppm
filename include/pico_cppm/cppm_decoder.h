@@ -9,16 +9,6 @@
 
 #include "cppm_decoder.pio.h"
 
-namespace {
-
-constexpr uint32_t DEFAULT_MAX_PERIOD_US = 2500;
-constexpr double DEFAULT_CALIBRATED_MIN_US = 900;
-constexpr double DEFAULT_CALIBRATED_MAX_US = 2200;
-
-constexpr uint32_t MICROS_PER_SEC = 1'000'000;
-
-} // namespace
-
 class CPPMDecoder {
  public:
   CPPMDecoder(uint cppm_gpio, PIO pio = pio0,
@@ -42,6 +32,12 @@ class CPPMDecoder {
   // TODO: calibration mode
 
  private:
+  static constexpr uint32_t MICROS_PER_SEC = 1'000'000;
+
+  static constexpr uint32_t DEFAULT_MAX_PERIOD_US = 2500;
+  static constexpr double DEFAULT_CALIBRATED_MIN_US = 900;
+  static constexpr double DEFAULT_CALIBRATED_MAX_US = 2200;
+
   uint cppm_gpio;
 
   PIO pio;
