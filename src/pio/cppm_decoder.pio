@@ -12,6 +12,7 @@ init:
 after_sync:
   set x, NUM_CHANNELS ; frame okay
 
+.wrap_target
 flush_channels:
   jmp !y flush_channels_done ; no more channels to flush
   jmp y-- nojmp_flush_channels
@@ -45,11 +46,11 @@ wait_for_low:
   jmp pin pin_not_low
   jmp wait_for_high
 pin_not_low:
-  jmp x-- wait_for_low [2] ; delay 2 to match wait_for_high loop
+  jmp x-- wait_for_low [2] ; delay to match wait_for_high loop
 
 high_pulse_timeout:
   set x, 0 ; frame error, wait for sync
-  jmp flush_channels
+.wrap
 
 
 % c-sdk {
