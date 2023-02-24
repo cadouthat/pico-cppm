@@ -28,7 +28,7 @@ class CPPMDecoder {
     calibrated_max_us(calibrated_max_us) {}
   // TODO: cleanup in destructor
 
-  // Start PIO/DMA, which will begin populating channel values via interrupts
+  // Start PIO/DMA, which will begin populating channel values continuously
   void startListening();
 
   // Get the latest value for channel index ch, in range [-1, 1]
@@ -36,13 +36,7 @@ class CPPMDecoder {
 
   // TODO: calibration mode
 
-  // Global setup routine for CPPMDecoder interrupts. This must have been called at least once
-  // before startListening()
-  // dma_irq_index must be 0 or 1, corresponding to DMA_IRQ_0 or DMA_IRQ_1
-  static void sharedInit(uint dma_irq_index);
-
  private:
-
   uint cppm_gpio;
 
   PIO pio;
@@ -51,6 +45,8 @@ class CPPMDecoder {
 
   int dma_channel = -1;
   volatile uint32_t dma_buffer[cppm_decoder_NUM_CHANNELS] = {0};
+  int dma_loop_channel = -1;
+  volatile uint32_t* dma_buffer_ptr = (uint32_t*)&dma_buffer;
 
   uint32_t clocks_per_us = 0;
   uint32_t max_period_count = 0;
@@ -60,15 +56,6 @@ class CPPMDecoder {
   double calibrated_min_us;
   // Channel period that maps to 1
   double calibrated_max_us;
-
-  static int dma_irq_index;
-  // Map from DMA channel to CPPMDecoder instance which claims it (if any)
-  static CPPMDecoder* dma_channel_to_instance[NUM_DMA_CHANNELS];
-
-  void handleDMAFinished();
-
-  static uint assignUnusedDMAChannel(CPPMDecoder* instance);
-  static void sharedISRForDMA();
 };
 
 #endif

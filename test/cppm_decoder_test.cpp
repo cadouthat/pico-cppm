@@ -48,7 +48,6 @@ int main() {
   printf("Begin test\n");
 
   CPPMDecoder decoder(TEST_GPIO, pio0, 2500, 1000, 2000);
-  CPPMDecoder::sharedInit(0);
   decoder.startListening();
 
   gpio_init(TEST_GPIO);
