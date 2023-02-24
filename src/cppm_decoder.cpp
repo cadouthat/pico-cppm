@@ -1,32 +1,63 @@
 #include "pico_cppm/cppm_decoder.h"
 
 #include <stdint.h>
-#include <stdio.h>
 #include <inttypes.h>
 
 #include "pico/stdlib.h"
-#include "hardware/clocks.h"
 #include "hardware/dma.h"
 #include "hardware/pio.h"
 
 #include "cppm_decoder.pio.h"
 
-namespace {
-
-constexpr uint32_t MICROS_PER_SEC = 1'000'000;
-
-} // namespace
-
 void CPPMDecoder::startListening() {
-  // Make sure we haven't already started listening
+  // Make sure we haven't already started
   assert(dma_channel < 0);
 
+  initPIO();
+  startDMA();
+
+  // Unblock the PIO program by providing maximum period count via TX FIFO
+  max_period_count = max_period_us * clocks_per_us / cppm_decoder_CLOCKS_PER_COUNT;
+  pio_sm_put_blocking(pio, pio_sm, max_period_count);
+}
+
+double CPPMDecoder::getChannelValue(uint ch) {
+  if (ch >= cppm_decoder_NUM_CHANNELS) {
+    return 0;
+  }
+  // 0 indicates that a channel value is not available
+  if (!dma_buffer[ch]) {
+    return 0;
+  }
+
+  // PIO deducts from max period count and pushes the number remaining
+  uint32_t last_count = max_period_count - dma_buffer[ch];
+
+  double last_us = (last_count / (double)clocks_per_us) * cppm_decoder_CLOCKS_PER_COUNT;
+
+  // Use calibration to convert duration to [-1, 1] value range
+  double p = (last_us - calibrated_min_us) / (calibrated_max_us - calibrated_min_us);
+  p = p * 2 - 1;
+  
+  if (p < -1) {
+    return -1;
+  }
+  if (p > 1) {
+    return 1;
+  }
+  return p;
+}
+
+void CPPMDecoder::initPIO() {
   // Load and configure PIO program
   pio_offset = pio_add_program(pio, &cppm_decoder_program);
   pio_sm = pio_claim_unused_sm(pio, true);
 
+  // Enable the state machine, but it will be blocked waiting for configuration
   cppm_decoder_program_init(pio, pio_sm, pio_offset, cppm_gpio);
+}
 
+void CPPMDecoder::startDMA() {
   dma_channel = dma_claim_unused_channel(/*required=*/true);
   dma_loop_channel = dma_claim_unused_channel(/*required=*/true);
 
@@ -60,36 +91,4 @@ void CPPMDecoder::startListening() {
     &dma_buffer_ptr,
     /*transfer_count=*/1,
     /*trigger=*/true);
-
-  // Unblock the PIO program by providing maximum period count via TX FIFO
-  clocks_per_us = clock_get_hz(clk_sys) / MICROS_PER_SEC;
-  max_period_count = max_period_us * clocks_per_us / cppm_decoder_CLOCKS_PER_COUNT;
-  pio_sm_put_blocking(pio, pio_sm, max_period_count);
-}
-
-double CPPMDecoder::getChannelValue(uint ch) {
-  if (ch >= cppm_decoder_NUM_CHANNELS) {
-    return 0;
-  }
-  // 0 indicates that a channel value is not available
-  if (!dma_buffer[ch]) {
-    return 0;
-  }
-
-  // PIO deducts from max period count and pushes the number remaining
-  uint32_t last_count = max_period_count - dma_buffer[ch];
-
-  double last_us = (last_count / (double)clocks_per_us) * cppm_decoder_CLOCKS_PER_COUNT;
-
-  // Use calibration to convert duration to [-1, 1] value range
-  double p = (last_us - calibrated_min_us) / (calibrated_max_us - calibrated_min_us);
-  p = p * 2 - 1;
-  
-  if (p < -1) {
-    return -1;
-  }
-  if (p > 1) {
-    return 1;
-  }
-  return p;
 }

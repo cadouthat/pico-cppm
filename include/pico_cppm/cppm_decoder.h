@@ -1,8 +1,9 @@
-#ifndef __HARDWARE_RR12RDTS_H__
-#define __HARDWARE_RR12RDTS_H__
+#ifndef __PICO_CPPM_CPPM_DECODER_H__
+#define __PICO_CPPM_CPPM_DECODER_H__
 
 #include <stdint.h>
 
+#include "hardware/clocks.h"
 #include "hardware/dma.h"
 #include "hardware/pio.h"
 
@@ -13,6 +14,8 @@ namespace {
 constexpr uint32_t DEFAULT_MAX_PERIOD_US = 2500;
 constexpr double DEFAULT_CALIBRATED_MIN_US = 900;
 constexpr double DEFAULT_CALIBRATED_MAX_US = 2200;
+
+constexpr uint32_t MICROS_PER_SEC = 1'000'000;
 
 } // namespace
 
@@ -25,7 +28,9 @@ class CPPMDecoder {
     : cppm_gpio(cppm_gpio), pio(pio),
     max_period_us(max_period_us),
     calibrated_min_us(calibrated_min_us),
-    calibrated_max_us(calibrated_max_us) {}
+    calibrated_max_us(calibrated_max_us) {
+    clocks_per_us = clock_get_hz(clk_sys) / MICROS_PER_SEC;
+  }
   // TODO: cleanup in destructor
 
   // Start PIO/DMA, which will begin populating channel values continuously
@@ -56,6 +61,9 @@ class CPPMDecoder {
   double calibrated_min_us;
   // Channel period that maps to 1
   double calibrated_max_us;
+
+  void initPIO();
+  void startDMA();
 };
 
 #endif
