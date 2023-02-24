@@ -16,7 +16,6 @@ target_include_directories(pico_cppm PRIVATE ${CMAKE_CURRENT_LIST_DIR}/src )
 target_link_libraries(pico_cppm
   pico_stdlib
   hardware_dma
-  hardware_irq
   hardware_pio
 )
 
