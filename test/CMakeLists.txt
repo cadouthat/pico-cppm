@@ -19,8 +19,20 @@ pico_enable_stdio_usb(cppm_decoder_test 1)
 
 target_link_libraries(cppm_decoder_test
   pico_stdlib
-  pico_time
   pico_cppm
 )
 
 pico_add_extra_outputs(cppm_decoder_test)
+
+add_executable(cppm_encoder_decoder_test
+  cppm_encoder_decoder_test.cpp
+)
+
+pico_enable_stdio_usb(cppm_encoder_decoder_test 1)
+
+target_link_libraries(cppm_encoder_decoder_test
+  pico_stdlib
+  pico_cppm
+)
+
+pico_add_extra_outputs(cppm_encoder_decoder_test)
