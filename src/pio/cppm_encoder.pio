@@ -3,26 +3,26 @@
 .define public CLOCKS_PER_COUNT 2
 
 init:
-  pull block ; The very first value configures HIGH pulse duration
+  pull block ; The very first value configures pulse duration
   mov isr, osr
 
 .wrap_target
 begin_pulse:
-  mov x, isr ; HIGH pulse duration
+  mov x, isr ; pulse duration
   pull block
   mov y, osr ; rising edge period
-  set pins, 1
-
-high_delay:
-  jmp y-- nojmp_decrement_x
-nojmp_decrement_x:
-  jmp x-- high_delay
-
-end_pulse:
   set pins, 0
 
+pulse_delay:
+  jmp y-- nojmp_decrement_x
+nojmp_decrement_x:
+  jmp x-- pulse_delay
+
+end_pulse:
+  set pins, 1
+
 sync_delay:
-  jmp y-- sync_delay [1] ; delay to match high_delay loop
+  jmp y-- sync_delay [1] ; delay to match pulse_delay loop
 .wrap
 
 

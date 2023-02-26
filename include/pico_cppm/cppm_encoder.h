@@ -9,12 +9,12 @@
 class CPPMEncoder {
  public:
   CPPMEncoder(uint cppm_gpio, PIO pio = pio0,
-    double high_pulse_us = DEFAULT_HIGH_PULSE_US,
+    double pulse_us = DEFAULT_PULSE_US,
     double min_channel_us = DEFAULT_MIN_CHANNEL_US,
     double max_channel_us = DEFAULT_MAX_CHANNEL_US,
     double sync_period_us = DEFAULT_SYNC_PERIOD_US)
     : cppm_gpio(cppm_gpio), pio(pio),
-    high_pulse_us(high_pulse_us),
+    pulse_us(pulse_us),
     min_channel_us(min_channel_us),
     max_channel_us(max_channel_us),
     sync_period_us(sync_period_us) {
@@ -33,7 +33,7 @@ class CPPMEncoder {
 
   static constexpr uint NUM_CHANNELS = 9;
 
-  static constexpr double DEFAULT_HIGH_PULSE_US = 500;
+  static constexpr double DEFAULT_PULSE_US = 500;
   static constexpr double DEFAULT_MIN_CHANNEL_US = 1000;
   static constexpr double DEFAULT_MAX_CHANNEL_US = 2000;
   static constexpr double DEFAULT_SYNC_PERIOD_US = 5000;
@@ -50,7 +50,7 @@ class CPPMEncoder {
   int dma_loop_channel = -1;
   volatile uint32_t* dma_buffer_ptr = (uint32_t*)&dma_buffer;
 
-  double high_pulse_us;
+  double pulse_us;
   double min_channel_us;
   double max_channel_us;
   double sync_period_us;

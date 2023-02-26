@@ -5,52 +5,56 @@
 
 init:
   pull block ; Load OSR with max period duration
-  set y, 0 ; no channels to flush
-  set x, 0 ; frame status unknown, wait for sync
-  jmp flush_channels
+  set y, 0
 
-after_sync:
-  set x, NUM_CHANNELS ; frame okay
+flush_channels_and_sync:
+  set x, 1
 
-.wrap_target
+; enables re-sync if x > 0
 flush_channels:
-  jmp !y flush_channels_done ; no more channels to flush
-  jmp y-- nojmp_flush_channels
-nojmp_flush_channels:
+  jmp y-- continue_flush_channels
+  jmp !x ready_for_clean_frame
+  jmp wait_for_long_high
+continue_flush_channels:
   mov isr, null ; load 0 into ISR and push to FIFO
   push block
   jmp flush_channels
-flush_channels_done:
-  mov y, x ; next frame will capture 0 or NUM_CHANNELS
-  set x, 0 ; timer of 0 to wait for first rising edge
 
-wait_for_high:
-  jmp pin rising_edge
-  jmp !x wait_for_high ; wait indefinitely if x is already 0
-  jmp x-- nojmp_wait_for_high
-nojmp_wait_for_high:
-  jmp !x after_sync ; x just reached 0, start a new frame
-  jmp wait_for_high
+wait_for_long_high:
+  mov x, osr ; start timer for max period
+wait_for_long_high_loop:
+  jmp pin nojmp_wait_for_long_high
+  jmp wait_for_long_high ; pin is not high, start over
+nojmp_wait_for_long_high:
+  jmp x-- wait_for_long_high_loop [3] ; delay to match wait_for_low loop
 
-rising_edge:
-  jmp !x start_channel ; this was the first rising edge
-  jmp !y start_channel ; already reached channel limit or skipping this frame
-  in x, 32
-  push block
-  jmp y-- start_channel
-start_channel:
-  mov x, osr ; restart channel timer
+ready_for_clean_frame:
+  set y, NUM_CHANNELS
+  set x, 0
 
 wait_for_low:
-  jmp !x high_pulse_timeout
   jmp pin pin_not_low
-  jmp wait_for_high
+  jmp rising_edge
 pin_not_low:
-  jmp x-- wait_for_low [2] ; delay to match wait_for_high loop
+  jmp !x wait_for_low ; wait indefinitely if x is already 0
+  jmp x-- nojmp_wait_for_low
+nojmp_wait_for_low:
+  jmp !x flush_channels ; x just reached 0, flush the frame
+  jmp wait_for_low
 
-high_pulse_timeout:
-  set x, 0 ; frame error, wait for sync
-.wrap
+rising_edge:
+  jmp !x after_value_push ; first rising edge of a frame, no value
+  jmp !y after_value_push ; too many channels, discard value
+  in x, 32
+  push block
+  jmp y-- after_value_push
+after_value_push:
+  mov x, osr ; start counting time to next rising edge
+
+wait_for_high:
+  jmp !x flush_channels_and_sync ; timeout during pulse, re-sync
+  jmp pin wait_for_low
+  jmp x-- wait_for_high [2] ; delay to match wait_for_low loop
 
 
 % c-sdk {

@@ -35,8 +35,8 @@ class CPPMDecoder {
   static constexpr uint32_t MICROS_PER_SEC = 1'000'000;
 
   static constexpr uint32_t DEFAULT_MAX_PERIOD_US = 2500;
-  static constexpr double DEFAULT_CALIBRATED_MIN_US = 900;
-  static constexpr double DEFAULT_CALIBRATED_MAX_US = 2200;
+  static constexpr double DEFAULT_CALIBRATED_MIN_US = 1000;
+  static constexpr double DEFAULT_CALIBRATED_MAX_US = 2000;
 
   uint cppm_gpio;
 

@@ -41,9 +41,9 @@ void CPPMEncoder::startPIO() {
   pio_sm = pio_claim_unused_sm(pio, true);
   cppm_encoder_program_init(pio, pio_sm, pio_offset, cppm_gpio);
 
-  // Unblock the PIO program by providing HIGH pulse duration via TX FIFO
-  uint32_t high_pulse_count = high_pulse_us * clocks_per_us / cppm_encoder_CLOCKS_PER_COUNT;
-  pio_sm_put_blocking(pio, pio_sm, high_pulse_count);
+  // Unblock the PIO program by providing pulse duration via TX FIFO
+  uint32_t pulse_count = pulse_us * clocks_per_us / cppm_encoder_CLOCKS_PER_COUNT;
+  pio_sm_put_blocking(pio, pio_sm, pulse_count);
 }
 
 void CPPMEncoder::initDMABuffer() {

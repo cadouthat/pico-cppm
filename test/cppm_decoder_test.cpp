@@ -6,23 +6,27 @@
 #include "pico_cppm/cppm_decoder.h"
 
 constexpr uint TEST_GPIO = 2;
+constexpr uint SYNC_PERIOD_US = 20000;
+constexpr uint DEFAULT_PULSE_US = 500;
 constexpr double MIN_PERIOD_US = 1000;
 constexpr double MAX_PERIOD_US = 2000;
 constexpr double EXPECT_DELTA = 0.05;
 
+constexpr bool PULSE_GPIO_STATE = false;
+
 void sendSync(uint pulse_us) {
-  gpio_put(TEST_GPIO, true);
+  gpio_put(TEST_GPIO, PULSE_GPIO_STATE);
   sleep_us(pulse_us);
-  gpio_put(TEST_GPIO, false);
-  sleep_us(10000);
+  gpio_put(TEST_GPIO, !PULSE_GPIO_STATE);
+  sleep_us(SYNC_PERIOD_US - pulse_us);
 }
 
 void sendPulses(const double durations[], uint pulse_us = 500, uint num_channels = 9, bool with_sync = true) {
   for (int i = 0; i < num_channels; i++) {
     uint32_t channel_us = MAX(0, (durations[i] + 1) / 2 * (MAX_PERIOD_US - MIN_PERIOD_US) + MIN_PERIOD_US);
-    gpio_put(TEST_GPIO, true);
+    gpio_put(TEST_GPIO, PULSE_GPIO_STATE);
     sleep_us(pulse_us);
-    gpio_put(TEST_GPIO, false);
+    gpio_put(TEST_GPIO, !PULSE_GPIO_STATE);
     if (channel_us > pulse_us) {
       sleep_us(channel_us - pulse_us);
     }
@@ -47,48 +51,64 @@ int main() {
   sleep_ms(2500);
   printf("Begin test\n");
 
-  CPPMDecoder decoder(TEST_GPIO, pio0, 2500, 1000, 2000);
+  CPPMDecoder decoder(TEST_GPIO, pio0, SYNC_PERIOD_US, MIN_PERIOD_US, MAX_PERIOD_US);
   decoder.startListening();
 
   gpio_init(TEST_GPIO);
-  gpio_put(TEST_GPIO, false);
+  gpio_put(TEST_GPIO, !PULSE_GPIO_STATE);
   gpio_set_dir(TEST_GPIO, true);
 
   sendPulses((const double[]){0.75, 0.75, 0.75, 0.75, 0.75, 0.75, 0.75, 0.75, 0.75});
+  sleep_ms(1);
   expectChannels(decoder, (const double[]){0, 0, 0, 0, 0, 0, 0, 0, 0}, "discard first frame");
 
-  sendPulses((const double[]){0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5});
-  expectChannels(decoder, (const double[]){0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5}, "typical frame");
+  sendPulses((const double[]){-1, 1, -1, 1, -1, 1, -1, 1, -1});
+  sleep_ms(1);
+  expectChannels(decoder, (const double[]){-1, 1, -1, 1, -1, 1, -1, 1, -1}, "switching polarity");
 
-  sendPulses((const double[]){-0.99, 0.99, -0.99, 0.99, -0.99, 0.99, -0.99, 0.99, -0.99});
-  expectChannels(decoder, (const double[]){-0.99, 0.99, -0.99, 0.99, -0.99, 0.99, -0.99, 0.99, -0.99}, "fast pulses");
+  sendPulses((const double[]){1, 1, -1, -1, 1, 1, -1, -1, 1}, 50);
+  sleep_ms(1);
+  expectChannels(decoder, (const double[]){1, 1, -1, -1, 1, 1, -1, -1, 1}, "fast pulses");
 
-  sendPulses((const double[]){0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99});
-  expectChannels(decoder, (const double[]){0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99}, "slow pulses");
+  sendPulses((const double[]){-1, 1, -1, 1, -1, 1, -1, 1, -1}, 950);
+  sleep_ms(1);
+  expectChannels(decoder, (const double[]){-1, 1, -1, 1, -1, 1, -1, 1, -1}, "slow pulses");
 
-  sendPulses((const double[]){0.75, 0.75, 0.75}, 500, 3);
+  sendPulses((const double[]){0.75, 0.75, 0.75}, DEFAULT_PULSE_US, 3);
+  sleep_ms(1);
   expectChannels(decoder, (const double[]){0.75, 0.75, 0.75, 0, 0, 0, 0, 0, 0}, "too few channels");
 
-  sendPulses((const double[]){0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.75, 0.75, 0.75}, 500, 12);
+  sendPulses((const double[]){0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.75, 0.75, 0.75}, DEFAULT_PULSE_US, 12);
+  sleep_ms(1);
   expectChannels(decoder, (const double[]){0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5}, "too many channels");
 
-  sendPulses((const double[]){-0.25}, 500, 1, false);
+  sendPulses((const double[]){-0.25}, DEFAULT_PULSE_US, 1, false);
   // Rising edge
-  gpio_put(TEST_GPIO, true);
+  gpio_put(TEST_GPIO, PULSE_GPIO_STATE);
+  sleep_ms(1);
   expectChannels(decoder, (const double[]){-0.25, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5}, "partial channels in realtime");
-  sendPulses((const double[]){0}, 500, 1);
+  sendPulses((const double[]){0}, DEFAULT_PULSE_US, 1);
 
-  sendPulses((const double[]){0.25}, 500, 1, false);
-  gpio_put(TEST_GPIO, true);
-  sleep_us(2500);
+  sendPulses((const double[]){0.25}, DEFAULT_PULSE_US, 1, false);
+  gpio_put(TEST_GPIO, PULSE_GPIO_STATE);
+  sleep_us(SYNC_PERIOD_US);
+  sleep_ms(1);
   expectChannels(decoder, (const double[]){0.25, 0, 0, 0, 0, 0, 0, 0, 0}, "long pulse error");
-  gpio_put(TEST_GPIO, false);
+  gpio_put(TEST_GPIO, !PULSE_GPIO_STATE);
 
   sendPulses((const double[]){0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5});
+  sleep_ms(1);
   expectChannels(decoder, (const double[]){0.25, 0, 0, 0, 0, 0, 0, 0, 0}, "discard first frame after error");
 
-  sendPulses((const double[]){0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5});
-  expectChannels(decoder, (const double[]){0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5}, "back to typical frame");
+  double expected[9];
+  for (float v = -1; v < 1; v += 0.05) {
+    for (int ch = 0; ch < 9; ch++) {
+      expected[ch] = v;
+    }
+    sendPulses(expected);
+    sleep_ms(1);
+    expectChannels(decoder, expected, "rapidly changing");
+  }
 
   printf("Test complete!");
   while(1) tight_loop_contents();

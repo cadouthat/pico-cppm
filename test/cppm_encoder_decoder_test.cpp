@@ -26,8 +26,8 @@ int main() {
   sleep_ms(2500);
   printf("Begin test\n");
 
-  CPPMEncoder encoder(TEST_GPIO, pio1);
-  CPPMDecoder decoder(TEST_GPIO, pio0, 2500, 1000, 2000);
+  CPPMEncoder encoder(TEST_GPIO, pio1, 500, MIN_PERIOD_US, MAX_PERIOD_US, 3000);
+  CPPMDecoder decoder(TEST_GPIO, pio0, 2500, MIN_PERIOD_US, MAX_PERIOD_US);
   decoder.startListening();
   encoder.startOutput();
 
