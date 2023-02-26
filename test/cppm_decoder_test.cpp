@@ -66,13 +66,20 @@ int main() {
   sleep_ms(1);
   expectChannels(decoder, (const double[]){-1, 1, -1, 1, -1, 1, -1, 1, -1}, "switching polarity");
 
-  sendPulses((const double[]){1, 1, -1, -1, 1, 1, -1, -1, 1}, 50);
-  sleep_ms(1);
-  expectChannels(decoder, (const double[]){1, 1, -1, -1, 1, 1, -1, -1, 1}, "fast pulses");
+  sendPulses((const double[]){1, 1, -1, -1, 1, 1, -1, -1, 1}, DEFAULT_PULSE_US, 9, false);
+  gpio_put(TEST_GPIO, PULSE_GPIO_STATE);
+  sleep_us(DEFAULT_PULSE_US);
+  gpio_put(TEST_GPIO, !PULSE_GPIO_STATE);
+  sleep_us(SYNC_PERIOD_US * 10);
+  expectChannels(decoder, (const double[]){1, 1, -1, -1, 1, 1, -1, -1, 1}, "long sync period");
 
   sendPulses((const double[]){-1, 1, -1, 1, -1, 1, -1, 1, -1}, 950);
   sleep_ms(1);
   expectChannels(decoder, (const double[]){-1, 1, -1, 1, -1, 1, -1, 1, -1}, "slow pulses");
+
+  sendPulses((const double[]){1, 1, -1, -1, 1, 1, -1, -1, 1}, 50);
+  sleep_ms(1);
+  expectChannels(decoder, (const double[]){1, 1, -1, -1, 1, 1, -1, -1, 1}, "fast pulses");
 
   sendPulses((const double[]){0.75, 0.75, 0.75}, DEFAULT_PULSE_US, 3);
   sleep_ms(1);
