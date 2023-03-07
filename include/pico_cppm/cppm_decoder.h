@@ -12,9 +12,9 @@
 class CPPMDecoder {
  public:
   CPPMDecoder(uint cppm_gpio, PIO pio = pio0,
-    uint32_t max_period_us = DEFAULT_MAX_PERIOD_US,
-    double calibrated_min_us = DEFAULT_CALIBRATED_MIN_US,
-    double calibrated_max_us = DEFAULT_CALIBRATED_MAX_US)
+    uint32_t max_period_us = 2500,
+    double calibrated_min_us = 1000,
+    double calibrated_max_us = 2000)
     : cppm_gpio(cppm_gpio), pio(pio),
     max_period_us(max_period_us),
     calibrated_min_us(calibrated_min_us),
@@ -29,14 +29,15 @@ class CPPMDecoder {
   // Get the latest value for channel index ch, in range [-1, 1]
   double getChannelValue(uint ch);
 
-  // TODO: calibration mode
+  // Calibration adjusts the min/max duration across all channels, based on the durations seen
+  // in samples taken by processCalibration
+  void beginCalibration();
+  void processCalibration();
+  // Returns true and puts calibration into effect if the min/max spread is at least min_spread_us
+  bool endCalibration(double min_spread_us = 500);
 
  private:
   static constexpr uint32_t MICROS_PER_SEC = 1'000'000;
-
-  static constexpr uint32_t DEFAULT_MAX_PERIOD_US = 2500;
-  static constexpr double DEFAULT_CALIBRATED_MIN_US = 1000;
-  static constexpr double DEFAULT_CALIBRATED_MAX_US = 2000;
 
   uint cppm_gpio;
 
@@ -58,8 +59,13 @@ class CPPMDecoder {
   // Channel period that maps to 1
   double calibrated_max_us;
 
+  bool is_calibrating = false;
+  double calibrating_min_us;
+  double calibrating_max_us;
+
   void initPIO();
   void startDMA();
+  double getChannelUs(uint ch);
 };
 
 #endif

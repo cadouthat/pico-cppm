@@ -22,18 +22,12 @@ void CPPMDecoder::startListening() {
 }
 
 double CPPMDecoder::getChannelValue(uint ch) {
-  if (ch >= cppm_decoder_NUM_CHANNELS) {
-    return 0;
-  }
+  double last_us = getChannelUs(ch);
+
   // 0 indicates that a channel value is not available
-  if (!dma_buffer[ch]) {
+  if (!last_us) {
     return 0;
   }
-
-  // PIO deducts from max period count and pushes the number remaining
-  uint32_t last_count = max_period_count - dma_buffer[ch];
-
-  double last_us = (last_count / (double)clocks_per_us) * cppm_decoder_CLOCKS_PER_COUNT;
 
   // Use calibration to convert duration to [-1, 1] value range
   double p = (last_us - calibrated_min_us) / (calibrated_max_us - calibrated_min_us);
@@ -46,6 +40,37 @@ double CPPMDecoder::getChannelValue(uint ch) {
     return 1;
   }
   return p;
+}
+
+void CPPMDecoder::beginCalibration() {
+  is_calibrating = true;
+  calibrating_min_us = getChannelUs(0);
+  calibrating_max_us = getChannelUs(0);
+}
+void CPPMDecoder::processCalibration() {
+  if (!is_calibrating) {
+    return;
+  }
+
+  for (uint ch = 0; ch < cppm_decoder_NUM_CHANNELS; ch++) {
+    double value = getChannelUs(ch);
+    calibrating_min_us = MIN(calibrating_min_us, value);
+    calibrating_max_us = MAX(calibrating_max_us, value);
+  }
+}
+bool CPPMDecoder::endCalibration(double min_spread_us) {
+  if (!is_calibrating) {
+    return false;
+  }
+  is_calibrating = false;
+
+  if (calibrating_max_us - calibrating_min_us < min_spread_us) {
+    return false;
+  }
+
+  calibrated_min_us = calibrating_min_us;
+  calibrated_max_us = calibrating_max_us;
+  return true;
 }
 
 void CPPMDecoder::initPIO() {
@@ -91,4 +116,19 @@ void CPPMDecoder::startDMA() {
     &dma_buffer_ptr,
     /*transfer_count=*/1,
     /*trigger=*/true);
+}
+
+double CPPMDecoder::getChannelUs(uint ch) {
+  if (ch >= cppm_decoder_NUM_CHANNELS) {
+    return 0;
+  }
+  // 0 indicates that a channel value is not available
+  if (!dma_buffer[ch]) {
+    return 0;
+  }
+
+  // PIO deducts from max period count and pushes the number remaining
+  uint32_t last_count = max_period_count - dma_buffer[ch];
+
+  return (last_count / (double)clocks_per_us) * cppm_decoder_CLOCKS_PER_COUNT;
 }
