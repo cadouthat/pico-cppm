@@ -43,7 +43,7 @@ class CPPMDecoder {
 
   PIO pio;
   uint pio_offset;
-  uint pio_sm;
+  int pio_sm = -1;
 
   int dma_channel = -1;
   volatile uint32_t dma_buffer[cppm_decoder_NUM_CHANNELS] = {0};

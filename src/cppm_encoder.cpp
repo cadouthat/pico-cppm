@@ -25,6 +25,7 @@ bool CPPMEncoder::startOutput() {
     // Note: pico_pio_loader doesn't currently support removing programs
     // We can at least free up the state machine
     pio_sm_unclaim(pio, pio_sm);
+    pio_sm = -1;
     return false;
   }
   return true;
@@ -48,11 +49,17 @@ void CPPMEncoder::setChannelValue(uint ch, double value) {
 }
 
 bool CPPMEncoder::startPIO() {
-  // Load and configure PIO program
-  if (!pio_loader_add_or_get_offset(pio, &cppm_encoder_program, &pio_offset)) {
+  pio_sm = pio_claim_unused_sm(pio, /*required=*/false);
+  if (pio_sm < 0) {
     return false;
   }
-  pio_sm = pio_claim_unused_sm(pio, true);
+
+  if (!pio_loader_add_or_get_offset(pio, &cppm_encoder_program, &pio_offset)) {
+    pio_sm_unclaim(pio, pio_sm);
+    pio_sm = -1;
+    return false;
+  }
+
   cppm_encoder_program_init(pio, pio_sm, pio_offset, cppm_gpio);
 
   // Unblock the PIO program by providing pulse duration via TX FIFO

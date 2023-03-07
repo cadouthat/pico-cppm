@@ -42,7 +42,7 @@ class CPPMEncoder {
 
   PIO pio;
   uint pio_offset;
-  uint pio_sm;
+  int pio_sm = -1;
 
   int dma_channel = -1;
   // Leave room for one extra entry to store sync pulse
