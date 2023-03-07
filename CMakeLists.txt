@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.13)
 
 include(pico_sdk_import.cmake)
 
+add_subdirectory(pico-pio-loader)
+
 project(pico_cppm C CXX ASM)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
@@ -18,6 +20,7 @@ target_link_libraries(pico_cppm
   pico_stdlib
   hardware_dma
   hardware_pio
+  pico_pio_loader
 )
 
 pico_generate_pio_header(pico_cppm ${CMAKE_CURRENT_LIST_DIR}/src/pio/cppm_encoder.pio)

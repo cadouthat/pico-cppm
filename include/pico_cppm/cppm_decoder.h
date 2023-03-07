@@ -24,7 +24,7 @@ class CPPMDecoder {
   // TODO: cleanup in destructor
 
   // Start PIO/DMA, which will begin populating channel values continuously
-  void startListening();
+  bool startListening();
 
   // Get the latest value for channel index ch, in range [-1, 1]
   double getChannelValue(uint ch);
@@ -42,8 +42,8 @@ class CPPMDecoder {
   uint cppm_gpio;
 
   PIO pio;
-  uint pio_offset = 0;
-  uint pio_sm = 0;
+  uint pio_offset;
+  uint pio_sm;
 
   int dma_channel = -1;
   volatile uint32_t dma_buffer[cppm_decoder_NUM_CHANNELS] = {0};
@@ -63,8 +63,8 @@ class CPPMDecoder {
   double calibrating_min_us;
   double calibrating_max_us;
 
-  void initPIO();
-  void startDMA();
+  bool initPIO();
+  bool startDMA();
   double getChannelUs(uint ch);
 };
 

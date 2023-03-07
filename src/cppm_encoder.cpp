@@ -7,15 +7,27 @@
 #include "hardware/dma.h"
 #include "hardware/pio.h"
 
+#include "pico_pio_loader/pico_pio_loader.h"
+
 #include "cppm_encoder.pio.h"
 
-void CPPMEncoder::startOutput() {
+bool CPPMEncoder::startOutput() {
   // Make sure we haven't already started
-  assert(dma_channel < 0);
+  if (dma_channel >= 0) {
+    return false;
+  }
 
-  startPIO();
+  if (!startPIO()) {
+    return false;
+  }
   initDMABuffer();
-  startDMA();
+  if (!startDMA()) {
+    // Note: pico_pio_loader doesn't currently support removing programs
+    // We can at least free up the state machine
+    pio_sm_unclaim(pio, pio_sm);
+    return false;
+  }
+  return true;
 }
 
 void CPPMEncoder::setChannelValue(uint ch, double value) {
@@ -35,15 +47,18 @@ void CPPMEncoder::setChannelValue(uint ch, double value) {
   dma_buffer[ch] = value_count;
 }
 
-void CPPMEncoder::startPIO() {
+bool CPPMEncoder::startPIO() {
   // Load and configure PIO program
-  pio_offset = pio_add_program(pio, &cppm_encoder_program);
+  if (!pio_loader_add_or_get_offset(pio, &cppm_encoder_program, &pio_offset)) {
+    return false;
+  }
   pio_sm = pio_claim_unused_sm(pio, true);
   cppm_encoder_program_init(pio, pio_sm, pio_offset, cppm_gpio);
 
   // Unblock the PIO program by providing pulse duration via TX FIFO
   uint32_t pulse_count = pulse_us * clocks_per_us / cppm_encoder_CLOCKS_PER_COUNT;
   pio_sm_put_blocking(pio, pio_sm, pulse_count);
+  return true;
 }
 
 void CPPMEncoder::initDMABuffer() {
@@ -54,9 +69,17 @@ void CPPMEncoder::initDMABuffer() {
   dma_buffer[NUM_CHANNELS] = sync_period_count;
 }
 
-void CPPMEncoder::startDMA() {
-  dma_channel = dma_claim_unused_channel(/*required=*/true);
-  dma_loop_channel = dma_claim_unused_channel(/*required=*/true);
+bool CPPMEncoder::startDMA() {
+  dma_channel = dma_claim_unused_channel(/*required=*/false);
+  if (dma_channel < 0) {
+    return false;
+  }
+  dma_loop_channel = dma_claim_unused_channel(/*required=*/false);
+  if (dma_loop_channel < 0) {
+    dma_channel_unclaim(dma_channel);
+    dma_channel = -1;
+    return false;
+  }
 
   // This DMA channel will send the buffer to PIO TX FIFO
   dma_channel_config dma_config = dma_channel_get_default_config(dma_channel);
@@ -88,4 +111,5 @@ void CPPMEncoder::startDMA() {
     &dma_buffer_ptr,
     /*transfer_count=*/1,
     /*trigger=*/true);
+  return true;
 }

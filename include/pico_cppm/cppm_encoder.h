@@ -23,7 +23,7 @@ class CPPMEncoder {
   // TODO: cleanup in destructor
 
   // Start PIO/DMA, which will begin generating cPPM output continuously
-  void startOutput();
+  bool startOutput();
 
   // Set the value for channel index ch, in range [-1, 1]
   void setChannelValue(uint ch, double value);
@@ -41,8 +41,8 @@ class CPPMEncoder {
   uint cppm_gpio;
 
   PIO pio;
-  uint pio_offset = 0;
-  uint pio_sm = 0;
+  uint pio_offset;
+  uint pio_sm;
 
   int dma_channel = -1;
   // Leave room for one extra entry to store sync pulse
@@ -57,9 +57,9 @@ class CPPMEncoder {
 
   uint32_t clocks_per_us = 0;
 
-  void startPIO();
+  bool startPIO();
   void initDMABuffer();
-  void startDMA();
+  bool startDMA();
 };
 
 #endif
