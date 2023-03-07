@@ -4,8 +4,9 @@
 .define public CLOCKS_PER_COUNT 5
 
 init:
-  pull block ; Load OSR with max period duration
-  set y, 0
+  ; These instructions are executed manually in the init function
+  ; set y, 0
+  ; pull block ; Load OSR with max period duration
 
 flush_channels_and_sync:
   set x, 1
@@ -16,8 +17,7 @@ flush_channels:
   jmp !x ready_for_clean_frame
   jmp wait_for_long_high
 continue_flush_channels:
-  mov isr, null ; load 0 into ISR and push to FIFO
-  push block
+  in null, 32 ; load 0 into ISR and autopush to FIFO
   jmp flush_channels
 
 wait_for_long_high:
@@ -45,8 +45,7 @@ nojmp_wait_for_low:
 rising_edge:
   jmp !x after_value_push ; first rising edge of a frame, no value
   jmp !y after_value_push ; too many channels, discard value
-  in x, 32
-  push block
+  in x, 32 ; autopush
   jmp y-- after_value_push
 after_value_push:
   mov x, osr ; start counting time to next rising edge
@@ -65,7 +64,13 @@ static inline void cppm_decoder_program_init(PIO pio, uint sm, uint offset, uint
     pio_gpio_init(pio, pin);
     pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, false);
 
+    sm_config_set_in_shift(&c, /*shift_right=*/true, /*autopush=*/true, 32);
+
     pio_sm_init(pio, sm, offset, &c);
+
+    pio_sm_exec(pio, sm, pio_encode_set(pio_y, 0));
+    pio_sm_exec(pio, sm, pio_encode_pull(/*if_empty=*/false, /*block=*/true));
+
     pio_sm_set_enabled(pio, sm, true);
 }
 %}
