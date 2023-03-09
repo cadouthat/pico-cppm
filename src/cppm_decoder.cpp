@@ -45,7 +45,7 @@ double CPPMDecoder::getChannelValue(uint ch) {
   // Use calibration to convert duration to [-1, 1] value range
   double p = (last_us - calibrated_min_us) / (calibrated_max_us - calibrated_min_us);
   p = p * 2 - 1;
-  
+
   if (p < -1) {
     return -1;
   }

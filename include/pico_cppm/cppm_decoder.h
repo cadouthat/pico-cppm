@@ -29,6 +29,8 @@ class CPPMDecoder {
   // Get the latest value for channel index ch, in range [-1, 1]
   double getChannelValue(uint ch);
 
+  double getChannelUs(uint ch);
+
   // Calibration adjusts the min/max duration across all channels, based on the durations seen
   // in samples taken by processCalibration
   void beginCalibration();
@@ -65,7 +67,6 @@ class CPPMDecoder {
 
   bool initPIO();
   bool startDMA();
-  double getChannelUs(uint ch);
 };
 
 #endif

@@ -14,7 +14,8 @@
 bool CPPMEncoder::startOutput() {
   // Make sure we haven't already started
   if (dma_channel >= 0) {
-    return false;
+    pio_sm_set_enabled(pio, pio_sm, true);
+    return true;
   }
 
   if (!startPIO()) {
@@ -29,6 +30,14 @@ bool CPPMEncoder::startOutput() {
     return false;
   }
   return true;
+}
+
+void CPPMEncoder::stopOutput() {
+  if (dma_channel < 0) {
+    return;
+  }
+
+  pio_sm_set_enabled(pio, pio_sm, true);
 }
 
 void CPPMEncoder::setChannelValue(uint ch, double value) {
