@@ -37,7 +37,7 @@ void CPPMEncoder::stopOutput() {
     return;
   }
 
-  pio_sm_set_enabled(pio, pio_sm, true);
+  pio_sm_set_enabled(pio, pio_sm, false);
 }
 
 void CPPMEncoder::setChannelValue(uint ch, double value) {
