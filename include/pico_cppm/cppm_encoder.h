@@ -24,6 +24,7 @@ class CPPMEncoder {
 
   // Start PIO/DMA, which will begin generating cPPM output continuously
   bool startOutput();
+  void stopOutput();
 
   // Set the value for channel index ch, in range [-1, 1]
   void setChannelValue(uint ch, double value);
