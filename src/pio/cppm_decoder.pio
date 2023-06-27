@@ -1,6 +1,6 @@
 .program cppm_decoder
 
-.define public NUM_CHANNELS 9
+.define public NUM_CHANNELS 10
 .define public CLOCKS_PER_COUNT 5
 
 init:
@@ -34,7 +34,7 @@ ready_for_clean_frame:
 
 wait_for_low:
   jmp pin pin_not_low
-  jmp rising_edge
+  jmp pulse_start_edge
 pin_not_low:
   jmp !x wait_for_low ; wait indefinitely if x is already 0
   jmp x-- nojmp_wait_for_low
@@ -42,13 +42,13 @@ nojmp_wait_for_low:
   jmp !x flush_channels ; x just reached 0, flush the frame
   jmp wait_for_low
 
-rising_edge:
-  jmp !x after_value_push ; first rising edge of a frame, no value
+pulse_start_edge:
+  jmp !x after_value_push ; first pulse edge of a frame, no value
   jmp !y after_value_push ; too many channels, discard value
   in x, 32 ; autopush
   jmp y-- after_value_push
 after_value_push:
-  mov x, osr ; start counting time to next rising edge
+  mov x, osr ; start counting time to next pulse edge
 
 wait_for_high:
   jmp !x flush_channels_and_sync ; timeout during pulse, re-sync

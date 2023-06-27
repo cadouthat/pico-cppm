@@ -1,15 +1,34 @@
 #include "pico_cppm/cppm_decoder.h"
 
-#include <stdint.h>
 #include <inttypes.h>
+#include <stdint.h>
+#include <string.h>
 
 #include "pico/stdlib.h"
+#include "pico/time.h"
 #include "hardware/dma.h"
 #include "hardware/pio.h"
 
 #include "pico_pio_loader/pico_pio_loader.h"
 
 #include "cppm_decoder.pio.h"
+
+int CPPMDecoder::dma_irq_index = -1;
+CPPMDecoder* CPPMDecoder::dma_channel_to_instance[NUM_DMA_CHANNELS] = {0};
+
+void CPPMDecoder::sharedInit(uint dma_irq_index) {
+  // If already initialized, do nothing
+  if (CPPMDecoder::dma_irq_index >= 0) {
+    return;
+  }
+  CPPMDecoder::dma_irq_index = dma_irq_index;
+
+  uint irq_num = dma_irq_index ? DMA_IRQ_1 : DMA_IRQ_0;
+
+  // Add our ISR as a shared handler, other handlers may exist for other DMA channels
+  irq_add_shared_handler(irq_num, sharedISRForDMA, PICO_SHARED_IRQ_HANDLER_DEFAULT_ORDER_PRIORITY);
+  irq_set_enabled(irq_num, true);
+}
 
 bool CPPMDecoder::startListening() {
   // Make sure we haven't already started
@@ -55,11 +74,21 @@ double CPPMDecoder::getChannelValue(uint ch) {
   return p;
 }
 
+uint32_t CPPMDecoder::getFrameAgeMs() {
+  if (!last_frame_ms) {
+    return UINT32_MAX;
+  }
+  // Grab a snapshot of the volatile value, to ensure it does not update after we fetch the time
+  uint32_t last_ms = last_frame_ms;
+  return to_ms_since_boot(get_absolute_time()) - last_ms;
+}
+
 void CPPMDecoder::beginCalibration() {
   is_calibrating = true;
   calibrating_min_us = getChannelUs(0);
   calibrating_max_us = getChannelUs(0);
 }
+
 void CPPMDecoder::processCalibration() {
   if (!is_calibrating) {
     return;
@@ -71,6 +100,7 @@ void CPPMDecoder::processCalibration() {
     calibrating_max_us = MAX(calibrating_max_us, value);
   }
 }
+
 bool CPPMDecoder::endCalibration(double min_spread_us) {
   if (!is_calibrating) {
     return false;
@@ -104,24 +134,18 @@ bool CPPMDecoder::initPIO() {
 }
 
 bool CPPMDecoder::startDMA() {
-  dma_channel = dma_claim_unused_channel(/*required=*/false);
+  // Configure a new DMA channel (interrupts are mapped to this instance)
+  dma_channel = assignUnusedDMAChannelWithInterrupts(this);
   if (dma_channel < 0) {
     return false;
   }
-  dma_loop_channel = dma_claim_unused_channel(/*required=*/false);
-  if (dma_loop_channel < 0) {
-    dma_channel_unclaim(dma_channel);
-    dma_channel = -1;
-    return false;
-  }
 
-  // This DMA channel will fill the buffer from the PIO RX FIFO
+  // This DMA will fill the buffer once from the PIO RX FIFO
   dma_channel_config dma_config = dma_channel_get_default_config(dma_channel);
   channel_config_set_transfer_data_size(&dma_config, DMA_SIZE_32);
   channel_config_set_read_increment(&dma_config, false);
   channel_config_set_write_increment(&dma_config, true);
   channel_config_set_dreq(&dma_config, pio_get_dreq(pio, pio_sm, /*is_tx=*/false));
-  channel_config_set_chain_to(&dma_config, dma_loop_channel);
 
   dma_channel_configure(
     dma_channel,
@@ -129,22 +153,8 @@ bool CPPMDecoder::startDMA() {
     dma_buffer,
     &pio->rxf[pio_sm],
     sizeof(dma_buffer) / sizeof(uint32_t),
-    /*trigger=*/false);
-
-  // This DMA channel will reset the first DMA channel to loop forever
-  dma_channel_config dma_loop_config = dma_channel_get_default_config(dma_loop_channel);
-  channel_config_set_transfer_data_size(&dma_loop_config, DMA_SIZE_32);
-  channel_config_set_read_increment(&dma_loop_config, false);
-  channel_config_set_write_increment(&dma_loop_config, false);
-  channel_config_set_chain_to(&dma_loop_config, dma_channel);
-
-  dma_channel_configure(
-    dma_loop_channel,
-    &dma_loop_config,
-    &dma_channel_hw_addr(dma_channel)->write_addr,
-    &dma_buffer_ptr,
-    /*transfer_count=*/1,
     /*trigger=*/true);
+
   return true;
 }
 
@@ -153,12 +163,67 @@ double CPPMDecoder::getChannelUs(uint ch) {
     return 0;
   }
   // 0 indicates that a channel value is not available
-  if (!dma_buffer[ch]) {
+  if (!last_frame_channels[ch]) {
     return 0;
   }
 
   // PIO deducts from max period count and pushes the number remaining
-  uint32_t last_count = max_period_count - dma_buffer[ch];
+  uint32_t last_count = max_period_count - last_frame_channels[ch];
 
   return (last_count / (double)clocks_per_us) * cppm_decoder_CLOCKS_PER_COUNT;
+}
+
+void CPPMDecoder::handleDMAFinished() {
+  // Count the number of decoded channels (non-zero values)
+  uint channel_count = 0;
+  for (uint ch = 0; ch < cppm_decoder_NUM_CHANNELS; ch++) {
+    if (dma_buffer[ch]) {
+      channel_count++;
+    }
+  }
+
+  if (channel_count == expected_channel_count) {
+    last_frame_ms = to_ms_since_boot(get_absolute_time());
+    memcpy((void*)last_frame_channels, (void*)dma_buffer, sizeof(last_frame_channels));
+  } else {
+    frame_error_count++;
+  }
+
+  // Restart DMA transfer
+  dma_channel_set_write_addr(dma_channel, dma_buffer, /*trigger=*/true);
+}
+
+int CPPMDecoder::assignUnusedDMAChannelWithInterrupts(CPPMDecoder* instance) {
+  // sharedInit must be called first
+  assert(dma_irq_index >= 0);
+
+  int channel = dma_claim_unused_channel(/*required=*/false);
+  if (channel < 0) {
+    return channel;
+  }
+
+  dma_irqn_set_channel_enabled(dma_irq_index, channel, true);
+
+  dma_channel_to_instance[channel] = instance;
+
+  return channel;
+}
+
+void CPPMDecoder::sharedISRForDMA() {
+  // DMA ISR is shared for all channels, so we need to check each
+  for (uint channel = 0; channel < NUM_DMA_CHANNELS; channel++) {
+    // We only care about channels assigned to CPPMDecoder instances
+    if (!dma_channel_to_instance[channel]) {
+      continue;
+    }
+
+    // We only care about channels currently requesting an interrupt
+    if (!dma_irqn_get_channel_status(dma_irq_index, channel)) {
+      continue;
+    }
+
+    dma_irqn_acknowledge_channel(dma_irq_index, channel);
+
+    dma_channel_to_instance[channel]->handleDMAFinished();
+  }
 }

@@ -1,9 +1,9 @@
 # pico-cppm
 cPPM library for the Raspberry Pi Pico using PIO + DMA
 
-Supports continuously encoding and decoding cPPM signals on GPIOs without ever interrupting the CPU.
+Supports encoding and decoding cPPM signals on GPIOs. Encoding can be done continuously without ever interrupting the CPU. Decoding requires an interrupt after each cPPM frame to verify the number of channels decoded.
 
-Each encoder/decoder instance requires 1 PIO state machine and 2 DMA channels, along with sufficient PIO program space (which is re-used across instances).
+Each encoder instance requires 1 PIO state machine and 2 DMA channels. Each decoder instance requires 1 PIO state machine and 1 DMA channel. Encoders and decoders both require sufficient PIO program space, which is re-used across encoder and decoder instances respectively.
 
 # cPPM Protocol Summary
 

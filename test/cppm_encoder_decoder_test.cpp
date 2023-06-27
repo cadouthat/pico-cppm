@@ -6,7 +6,11 @@
 #include "pico_cppm/cppm_encoder.h"
 #include "pico_cppm/cppm_decoder.h"
 
-constexpr uint TEST_GPIO = 2;
+
+// TODO: figure out a way to emulate PIO input
+// For now, these in/out pins need to be physically connected
+constexpr uint TEST_GPIO_OUT = 10;
+constexpr uint TEST_GPIO_IN = 15;
 constexpr double MIN_PERIOD_US = 1000;
 constexpr double MAX_PERIOD_US = 2000;
 constexpr double EXPECT_DELTA = 0.05;
@@ -26,8 +30,9 @@ int main() {
   sleep_ms(2500);
   printf("Begin test\n");
 
-  CPPMEncoder encoder(TEST_GPIO, pio1, 500, MIN_PERIOD_US, MAX_PERIOD_US, 3000);
-  CPPMDecoder decoder(TEST_GPIO, pio0, 2500, MIN_PERIOD_US, MAX_PERIOD_US);
+  CPPMEncoder encoder(TEST_GPIO_OUT, pio1, 500, MIN_PERIOD_US, MAX_PERIOD_US, 3000);
+  CPPMDecoder decoder(TEST_GPIO_IN, pio0, 9, 2500, MIN_PERIOD_US, MAX_PERIOD_US);
+  CPPMDecoder::sharedInit(0);
   decoder.startListening();
   encoder.startOutput();
 

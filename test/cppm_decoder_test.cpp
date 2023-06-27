@@ -5,8 +5,10 @@
 
 #include "pico_cppm/cppm_decoder.h"
 
-constexpr uint TEST_GPIO_OUT = 0;
-constexpr uint TEST_GPIO_IN = 1;
+// TODO: figure out a way to emulate PIO input
+// For now, these in/out pins need to be physically connected
+constexpr uint TEST_GPIO_OUT = 10;
+constexpr uint TEST_GPIO_IN = 15;
 constexpr uint SYNC_PERIOD_US = 20000;
 constexpr uint DEFAULT_PULSE_US = 500;
 constexpr double MIN_PERIOD_US = 1000;
@@ -52,7 +54,8 @@ int main() {
   sleep_ms(2500);
   printf("Begin test\n");
 
-  CPPMDecoder decoder(TEST_GPIO_IN, pio0, SYNC_PERIOD_US, MIN_PERIOD_US, MAX_PERIOD_US);
+  CPPMDecoder decoder(TEST_GPIO_IN, pio0, 9, SYNC_PERIOD_US, MIN_PERIOD_US, MAX_PERIOD_US);
+  CPPMDecoder::sharedInit(0);
   decoder.startListening();
 
   gpio_init(TEST_GPIO_OUT);
@@ -84,29 +87,36 @@ int main() {
 
   sendPulses((const double[]){0.75, 0.75, 0.75}, DEFAULT_PULSE_US, 3);
   sleep_ms(1);
-  expectChannels(decoder, (const double[]){0.75, 0.75, 0.75, 0, 0, 0, 0, 0, 0}, "too few channels");
+  expectChannels(decoder, (const double[]){1, 1, -1, -1, 1, 1, -1, -1, 1}, "too few channels");
+  int error_count = decoder.getFrameErrorCount();
+  if (error_count != 1) {
+    printf("Failure: got error_count %d; want 1\n", (int)error_count);
+  }
 
   sendPulses((const double[]){0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.75, 0.75, 0.75}, DEFAULT_PULSE_US, 12);
   sleep_ms(1);
-  expectChannels(decoder, (const double[]){0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5}, "too many channels");
+  expectChannels(decoder, (const double[]){1, 1, -1, -1, 1, 1, -1, -1, 1}, "too many channels");
+  error_count = decoder.getFrameErrorCount();
+  if (error_count != 2) {
+    printf("Failure: got error_count %d; want 2\n", (int)error_count);
+  }
 
-  sendPulses((const double[]){-0.25}, DEFAULT_PULSE_US, 1, false);
-  // Rising edge
-  gpio_put(TEST_GPIO_OUT, PULSE_GPIO_STATE);
+  sendPulses((const double[]){0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25});
   sleep_ms(1);
-  expectChannels(decoder, (const double[]){-0.25, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5}, "partial channels in realtime");
-  sendPulses((const double[]){0}, DEFAULT_PULSE_US, 1);
+  expectChannels(decoder, (const double[]){0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25}, "recovery after too many channels");
 
-  sendPulses((const double[]){0.25}, DEFAULT_PULSE_US, 1, false);
-  gpio_put(TEST_GPIO_OUT, PULSE_GPIO_STATE);
-  sleep_us(SYNC_PERIOD_US);
-  sleep_ms(1);
-  expectChannels(decoder, (const double[]){0.25, 0, 0, 0, 0, 0, 0, 0, 0}, "long pulse error");
-  gpio_put(TEST_GPIO_OUT, !PULSE_GPIO_STATE);
+  sendPulses((const double[]){0.5}, SYNC_PERIOD_US + 1500, 1, false);
+  sendPulses((const double[]){0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5}, DEFAULT_PULSE_US, 8);
+  sleep_ms(100);
+  expectChannels(decoder, (const double[]){0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25}, "long pulse error");
+  error_count = decoder.getFrameErrorCount();
+  if (error_count != 3) {
+    printf("Failure: got error_count %d; want 3\n", (int)error_count);
+  }
 
   sendPulses((const double[]){0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5});
   sleep_ms(1);
-  expectChannels(decoder, (const double[]){0.25, 0, 0, 0, 0, 0, 0, 0, 0}, "discard first frame after error");
+  expectChannels(decoder, (const double[]){0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5}, "recovery after error");
 
   double expected[9];
   for (float v = -1; v < 1; v += 0.05) {
