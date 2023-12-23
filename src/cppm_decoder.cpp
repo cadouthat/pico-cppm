@@ -202,9 +202,11 @@ int CPPMDecoder::assignUnusedDMAChannelWithInterrupts(CPPMDecoder* instance) {
     return channel;
   }
 
-  dma_irqn_set_channel_enabled(dma_irq_index, channel, true);
+  // Clear interrupt flag in case it was previously set
+  dma_irqn_acknowledge_channel(dma_irq_index, channel);
 
   dma_channel_to_instance[channel] = instance;
+  dma_irqn_set_channel_enabled(dma_irq_index, channel, true);
 
   return channel;
 }
