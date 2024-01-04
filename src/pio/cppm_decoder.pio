@@ -68,7 +68,7 @@ static inline void cppm_decoder_program_init(PIO pio, uint sm, uint offset, uint
 
     pio_sm_init(pio, sm, offset, &c);
 
-    pio_sm_exec(pio, sm, pio_encode_set(pio_y, 0));
+    pio_sm_exec_wait_blocking(pio, sm, pio_encode_set(pio_y, 0));
     pio_sm_exec(pio, sm, pio_encode_pull(/*if_empty=*/false, /*block=*/true));
 
     pio_sm_set_enabled(pio, sm, true);
