@@ -37,6 +37,9 @@ class CPPMDecoder {
   double getChannelValue(uint ch);
   double getChannelUs(uint ch);
 
+  bool hasFrame() { return has_frame; }
+  // Warning: do not use for one-liner age computation (e.g. `millis() - getFrameTimeMs()`) to avoid overflow
+  uint32_t getFrameTimeMs() { return last_frame_ms; }
   // Get the age of the latest frame in milliseconds
   uint32_t getFrameAgeMs();
 
@@ -65,6 +68,7 @@ class CPPMDecoder {
   uint8_t expected_channel_count;
   volatile uint32_t frame_error_count = 0;
 
+  volatile bool has_frame = false;
   volatile uint32_t last_frame_channels[cppm_decoder_NUM_CHANNELS] = {0};
   volatile uint32_t last_frame_ms = 0;
 
