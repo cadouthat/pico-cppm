@@ -38,11 +38,11 @@ class CPPMDecoder {
   double getChannelUs(uint ch);
 
   bool hasFrame() { return has_frame; }
-  // Warning: do not use for one-liner age computation (e.g. `millis() - getFrameTimeMs()`). millis() may be
-  // called first, and getFrameTimeMs() may return a greater value leading to overflow.
-  uint32_t getFrameTimeMs() { return last_frame_ms; }
-  // Get the age of the latest frame in milliseconds
-  uint32_t getFrameAgeMs();
+  // Warning: do not use for one-liner age computation (e.g. `micros() - getFrameTimeUs()`). micros() may be
+  // called first, and getFrameTimeUs() may return a greater value leading to overflow.
+  uint32_t getFrameTimeUs() { return last_frame_us; }
+  // Get the age of the latest frame in microseconds
+  uint32_t getFrameAgeUs();
 
   // Get cumulative frame error count (frames with unexpected number of channels)
   uint32_t getFrameErrorCount() { return frame_error_count; }
@@ -71,7 +71,7 @@ class CPPMDecoder {
 
   volatile bool has_frame = false;
   volatile uint32_t last_frame_channels[cppm_decoder_NUM_CHANNELS] = {0};
-  volatile uint32_t last_frame_ms = 0;
+  volatile uint32_t last_frame_us = 0;
 
   uint32_t clocks_per_us = 0;
   uint32_t max_period_count = 0;

@@ -74,13 +74,13 @@ double CPPMDecoder::getChannelValue(uint ch) {
   return p;
 }
 
-uint32_t CPPMDecoder::getFrameAgeMs() {
+uint32_t CPPMDecoder::getFrameAgeUs() {
   if (!has_frame) {
     return UINT32_MAX;
   }
   // Grab a snapshot of the volatile value, to ensure it does not update after we fetch the time
-  uint32_t last_ms = last_frame_ms;
-  return to_ms_since_boot(get_absolute_time()) - last_ms;
+  uint32_t last_us = last_frame_us;
+  return to_us_since_boot(get_absolute_time()) - last_us;
 }
 
 void CPPMDecoder::beginCalibration() {
@@ -184,7 +184,7 @@ void CPPMDecoder::handleDMAFinished() {
 
   if (channel_count == expected_channel_count) {
     has_frame = true;
-    last_frame_ms = to_ms_since_boot(get_absolute_time());
+    last_frame_us = to_us_since_boot(get_absolute_time());
     memcpy((void*)last_frame_channels, (void*)dma_buffer, sizeof(last_frame_channels));
   } else {
     frame_error_count++;
