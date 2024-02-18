@@ -38,7 +38,8 @@ class CPPMDecoder {
   double getChannelUs(uint ch);
 
   bool hasFrame() { return has_frame; }
-  // Warning: do not use for one-liner age computation (e.g. `millis() - getFrameTimeMs()`) to avoid overflow
+  // Warning: do not use for one-liner age computation (e.g. `millis() - getFrameTimeMs()`). millis() may be
+  // called first, and getFrameTimeMs() may return a greater value leading to overflow.
   uint32_t getFrameTimeMs() { return last_frame_ms; }
   // Get the age of the latest frame in milliseconds
   uint32_t getFrameAgeMs();
